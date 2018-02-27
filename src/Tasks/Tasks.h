@@ -406,6 +406,28 @@ private:
 	Eigen::MatrixXd jacDotMat_;
 };
 
+class TASKS_DLLAPI IntegratorFeedbackTask
+{
+public:
+	IntegratorFeedbackTask(const rbd::MultiBody& mb, std::vector<std::vector<double> > q);
+
+	void posture(std::vector<std::vector<double> > q);
+	const std::vector<std::vector<double> > posture() const;
+
+	void update(const rbd::MultiBody& mb, const rbd::MultiBodyConfig& mbc);
+	void updateDot(const rbd::MultiBody& mb, const rbd::MultiBodyConfig& mbc);
+
+	const Eigen::VectorXd& eval() const;
+	const Eigen::MatrixXd& jac() const;
+	const Eigen::MatrixXd& jacDot() const;
+
+private:
+	std::vector<std::vector<double> > q_;
+
+	Eigen::VectorXd eval_;
+	Eigen::MatrixXd jacMat_;
+	Eigen::MatrixXd jacDotMat_;
+};
 
 
 class TASKS_DLLAPI CoMTask

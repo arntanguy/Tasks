@@ -839,6 +839,125 @@ const Eigen::VectorXd& PostureTask::eval() const
 	return pt_.eval();
 }
 
+/**
+	*												IntegratorFeedbackTask
+	*/
+
+
+IntegratorFeedbackTask::IntegratorFeedbackTask(const std::vector<rbd::MultiBody>& mbs,
+	int rI,
+	std::vector<std::vector<double> > q,
+	double stiffness, double weight):
+	Task(weight),
+	pt_(mbs[rI], q),
+	stiffness_(stiffness),
+	damping_(2.*std::sqrt(stiffness)),
+	robotIndex_(rI),
+	alphaDBegin_(0),
+	jointDatas_(),
+	Q_(mbs[rI].nrDof(), mbs[rI].nrDof()),
+	C_(mbs[rI].nrDof()),
+	alphaVec_(mbs[rI].nrDof())
+{}
+
+
+void IntegratorFeedbackTask::stiffness(double stiffness)
+{
+	stiffness_ = stiffness;
+	damping_ = 2.*std::sqrt(stiffness);
+}
+
+void IntegratorFeedbackTask::gains(double stiffness)
+{
+	stiffness_ = stiffness;
+	damping_ = 2.*std::sqrt(stiffness);
+}
+
+void IntegratorFeedbackTask::gains(double stiffness, double damping)
+{
+	stiffness_ = stiffness;
+	damping_ = damping;
+}
+
+void IntegratorFeedbackTask::jointsStiffness(const std::vector<rbd::MultiBody>& mbs,
+	const std::vector<JointStiffness>& jsv)
+{
+	jointDatas_.clear();
+	jointDatas_.reserve(jsv.size());
+
+	const rbd::MultiBody& mb = mbs[robotIndex_];
+	for(const JointStiffness& js: jsv)
+	{
+		int jointIndex = mb.jointIndexByName(js.jointName);
+		jointDatas_.push_back({js.stiffness, 2.*std::sqrt(js.stiffness),
+													mb.jointPosInDof(jointIndex),
+													mb.joint(jointIndex).dof()});
+	}
+}
+
+void IntegratorFeedbackTask::jointsGains(const std::vector<rbd::MultiBody> &mbs,
+	const std::vector<JointGains> &jgv)
+{
+	jointDatas_.clear();
+	jointDatas_.reserve(jgv.size());
+
+	const rbd::MultiBody& mb = mbs[robotIndex_];
+	for(const JointGains& jg: jgv)
+	{
+		int jointIndex = mb.jointIndexByName(jg.jointName);
+		jointDatas_.push_back({jg.stiffness, jg.damping, mb.jointPosInDof(jointIndex),
+			mb.joint(jointIndex).dof()});
+	}
+}
+
+void IntegratorFeedbackTask::updateNrVars(const std::vector<rbd::MultiBody>& /* mbs */,
+	const SolverData& data)
+{
+	alphaDBegin_ = data.alphaDBegin(robotIndex_);
+}
+
+
+void IntegratorFeedbackTask::update(const std::vector<rbd::MultiBody>& mbs,
+	const std::vector<rbd::MultiBodyConfig>& mbcs,
+	const SolverData& /* data */)
+{
+	const rbd::MultiBody& mb = mbs[robotIndex_];
+	const rbd::MultiBodyConfig& mbc = mbcs[robotIndex_];
+
+	pt_.update(mb, mbc);
+	rbd::paramToVector(mbc.alpha, alphaVec_);
+
+	Q_ = pt_.jac();
+	C_.setZero();
+
+	int deb = mb.jointPosInDof(0);
+	int end = mb.nrDof() - deb;
+	// joint
+	C_.segment(deb, end) = -stiffness_*pt_.eval().segment(deb, end) +
+		damping_*alphaVec_.segment(deb, end);
+
+	for(const JointData& pjd: jointDatas_)
+	{
+		C_.segment(pjd.start, pjd.size) =
+				-pjd.stiffness*pt_.eval().segment(pjd.start, pjd.size) +
+				pjd.damping*alphaVec_.segment(pjd.start, pjd.size);
+	}
+}
+
+const Eigen::MatrixXd& IntegratorFeedbackTask::Q() const
+{
+	return Q_;
+}
+
+const Eigen::VectorXd& IntegratorFeedbackTask::C() const
+{
+	return C_;
+}
+
+const Eigen::VectorXd& IntegratorFeedbackTask::eval() const
+{
+	return pt_.eval();
+}
 
 /**
 	*											PositionTask
@@ -864,6 +983,7 @@ void PositionTask::update(const std::vector<rbd::MultiBody>& mbs,
 	const std::vector<rbd::MultiBodyConfig>& mbcs,
 	const SolverData& data)
 {
+  // std::cout << "QPTasks::PositionTask::update" << std::endl;
 	pt_.update(mbs[robotIndex_], mbcs[robotIndex_], data.normalAccB(robotIndex_));
 }
 
@@ -1213,6 +1333,7 @@ void CoMTask::update(const std::vector<rbd::MultiBody>& mbs,
 	const std::vector<rbd::MultiBodyConfig>& mbcs,
 	const SolverData& data)
 {
+  // std::cout << "COMPUTE COM ComTask: \n"  << rbd::computeCoM(mbs[robotIndex_], mbcs[robotIndex_]).transpose() << std::endl;;
 	ct_.update(mbs[robotIndex_], mbcs[robotIndex_],
 		rbd::computeCoM(mbs[robotIndex_], mbcs[robotIndex_]),
 		data.normalAccB(robotIndex_));

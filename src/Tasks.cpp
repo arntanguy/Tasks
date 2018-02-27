@@ -28,6 +28,8 @@
 #include <RBDyn/MultiBody.h>
 #include <RBDyn/MultiBodyConfig.h>
 
+#include <iostream>
+
 namespace tasks
 {
 
@@ -82,6 +84,16 @@ void PositionTask::update(const rbd::MultiBody& mb, const rbd::MultiBodyConfig& 
 	speed_ = jac_.velocity(mb, mbc).linear();
 	normalAcc_ = jac_.normalAcceleration(mb, mbc).linear();
 
+  // std::cout << "PositionTask::eval_ = " << eval_.transpose() << std::endl;
+  // // XXX CLAMP EVAL WITH WARNING
+  // if(eval_.norm() < 10e-3)
+  // {
+  //   std::cout << "WARNING CLAMPING POSITIONTASK ERROR" << std::endl;
+  //   eval_ = Eigen::Vector3d::Zero();
+	  // speed_ = Eigen::Vector3d::Zero();
+  //   normalAcc_ = Eigen::Vector3d::Zero();
+  // }
+
 	const auto& shortJacMat =
 		jac_.jacobian(mb, mbc).block(3, 0, 3, jac_.dof());
 	jac_.fullJacobian(mb, shortJacMat, jacMat_);
@@ -94,6 +106,16 @@ void PositionTask::update(const rbd::MultiBody& mb,
 	eval_ = pos_ - (point_*mbc.bodyPosW[bodyIndex_]).translation();
 	speed_ = jac_.velocity(mb, mbc).linear();
 	normalAcc_ = jac_.normalAcceleration(mb, mbc, normalAccB).linear();
+
+  // std::cout << "PositionTask::eval_ = " << eval_.transpose() << std::endl;
+  // // XXX CLAMP EVAL WITH WARNING
+  // if(eval_.norm() < 10e-3)
+  // {
+  //   std::cout << "WARNING CLAMPING POSITIONTASK ERROR" << std::endl;
+  //   eval_ = Eigen::Vector3d::Zero();
+	  // speed_ = Eigen::Vector3d::Zero();
+  //   normalAcc_ = Eigen::Vector3d::Zero();
+  // }
 
 	const auto& shortJacMat =
 		jac_.jacobian(mb, mbc).block(3, 0, 3, jac_.dof());
@@ -194,6 +216,15 @@ void OrientationTask::update(const rbd::MultiBody& mb, const rbd::MultiBodyConfi
 	speed_ = jac_.velocity(mb, mbc).angular();
 	normalAcc_ = jac_.normalAcceleration(mb, mbc).angular();
 
+  // // XXX CLAMP EVAL WITH WARNING
+  // if(eval_.norm() < 10e-3)
+  // {
+  //   std::cout << "WARNING CLAMPING OrientationTask ERROR" << std::endl;
+  //   eval_ = Eigen::Vector3d::Zero();
+	  // speed_ = Eigen::Vector3d::Zero();
+  //   normalAcc_ = Eigen::Vector3d::Zero();
+  // }
+
 	const auto& shortJacMat = jac_.jacobian(mb, mbc).block(0, 0, 3, jac_.dof());
 	jac_.fullJacobian(mb, shortJacMat, jacMat_);
 }
@@ -205,6 +236,15 @@ void OrientationTask::update(const rbd::MultiBody& mb,
 	eval_ = sva::rotationError(mbc.bodyPosW[bodyIndex_].rotation(), ori_, 1e-7);
 	speed_ = jac_.velocity(mb, mbc).angular();
 	normalAcc_ = jac_.normalAcceleration(mb, mbc, normalAccB).angular();
+
+  // // XXX CLAMP EVAL WITH WARNING
+  // if(eval_.norm() < 10e-3)
+  // {
+  //   std::cout << "WARNING CLAMPING OrientationTask ERROR" << std::endl;
+  //   eval_ = Eigen::Vector3d::Zero();
+	  // speed_ = Eigen::Vector3d::Zero();
+  //   normalAcc_ = Eigen::Vector3d::Zero();
+  // }
 
 	const auto& shortJacMat = jac_.jacobian(mb, mbc).block(0, 0, 3, jac_.dof());
 	jac_.fullJacobian(mb, shortJacMat, jacMat_);
@@ -1042,7 +1082,106 @@ const Eigen::MatrixXd& PostureTask::jac() const
 }
 
 
+
 const Eigen::MatrixXd& PostureTask::jacDot() const
+{
+	return jacDotMat_;
+}
+
+
+
+/**
+	*	IntegratorFeedbackTask
+	*/
+
+
+IntegratorFeedbackTask::IntegratorFeedbackTask(const rbd::MultiBody& mb, std::vector<std::vector<double> > q):
+	q_(q),
+	eval_(mb.nrDof()),
+	jacMat_(mb.nrDof(), mb.nrDof()),
+	jacDotMat_(mb.nrDof(), mb.nrDof())
+{
+	eval_.setZero();
+	jacMat_.setIdentity();
+	jacDotMat_.setZero();
+}
+
+
+void IntegratorFeedbackTask::posture(std::vector<std::vector<double> > q)
+{
+	q_ = q;
+}
+
+
+const std::vector<std::vector<double> > IntegratorFeedbackTask::posture() const
+{
+	return q_;
+}
+
+
+void IntegratorFeedbackTask::update(const rbd::MultiBody& mb, const rbd::MultiBodyConfig& mbc)
+{
+	using namespace Eigen;
+
+	int pos = mb.jointPosInDof(0);
+
+	for(int i = 0; i < mb.nrJoints(); ++i)
+	{
+		// if dof == 1 is a prismatic/revolute joint
+		// else if dof == 4 is a spherical one
+		// else is a fixed one
+		if(mb.joint(i).dof() == 1)
+		{
+			eval_(pos) =  mbc.q[i][0] - q_[i][0];
+			++pos;
+		}
+		else if(mb.joint(i).dof() == 4)
+		{
+			Matrix3d orid(
+				Quaterniond(q_[i][0], q_[i][1], q_[i][2], q_[i][3]).matrix());
+
+			Vector3d err = sva::rotationError(orid, mbc.jointConfig[i].rotation());
+
+			eval_.segment(pos, 3) = err;
+			pos += 3;
+		}
+    else if(mb.joint(i).type() == rbd::Joint::Free)
+    {
+      Eigen::Matrix3d R_real = Eigen::Quaterniond(mbc.q[i][0], mbc.q[i][1], mbc.q[i][2], mbc.q[i][3]).toRotationMatrix();
+      Eigen::Vector3d t_real;
+      t_real << mbc.q[i][4], mbc.q[i][5], mbc.q[i][6];
+      sva::PTransformd X_real(R_real.inverse(), t_real);
+
+      Eigen::Matrix3d R_integrator = Eigen::Quaterniond(q_[i][0], q_[i][1], q_[i][2], q_[i][3]).toRotationMatrix();
+      Eigen::Vector3d t_integrator;
+      t_integrator << q_[i][4], q_[i][5], q_[i][6];
+      sva::PTransformd X_integrator(R_integrator.inverse(), t_integrator);
+
+      eval_.segment(pos,6) = sva::transformError(X_integrator, X_real).vector();
+      std::cout << "Free joint error: " << eval_.segment(pos,6) << std::endl;
+      pos += 6;
+    }
+	}
+}
+
+
+void IntegratorFeedbackTask::updateDot(const rbd::MultiBody& /* mb */, const rbd::MultiBodyConfig& /* mbc */)
+{}
+
+
+const Eigen::VectorXd& IntegratorFeedbackTask::eval() const
+{
+	return eval_;
+}
+
+
+const Eigen::MatrixXd& IntegratorFeedbackTask::jac() const
+{
+	return jacMat_;
+}
+
+
+const Eigen::MatrixXd& IntegratorFeedbackTask::jacDot() const
 {
 	return jacDotMat_;
 }

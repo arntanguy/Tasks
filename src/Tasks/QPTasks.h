@@ -502,6 +502,85 @@ private:
 	Eigen::VectorXd alphaVec_;
 };
 
+class TASKS_DLLAPI IntegratorFeedbackTask : public Task
+{
+public:
+	IntegratorFeedbackTask(const std::vector<rbd::MultiBody>& mbs, int robotIndex,
+		std::vector<std::vector<double> > q, double stiffness, double weight);
+
+	tasks::IntegratorFeedbackTask& task()
+	{
+		return pt_;
+	}
+
+	void posture(std::vector<std::vector<double> > q)
+	{
+		pt_.posture(q);
+	}
+
+	const std::vector<std::vector<double> > posture() const
+	{
+		return pt_.posture();
+	}
+
+	double stiffness() const
+	{
+		return stiffness_;
+	}
+
+	double damping() const
+	{
+		return damping_;
+	}
+
+	void stiffness(double stiffness);
+
+	void gains(double stiffness);
+	void gains(double stiffness, double damping);
+
+	void jointsStiffness(const std::vector<rbd::MultiBody>& mbs,
+		const std::vector<JointStiffness>& jsv);
+
+	void jointsGains(const std::vector<rbd::MultiBody>& mbs,
+		const std::vector<JointGains>& jgv);
+
+	virtual std::pair<int, int> begin() const
+	{
+		return std::make_pair(alphaDBegin_, alphaDBegin_);
+	}
+
+	virtual void updateNrVars(const std::vector<rbd::MultiBody>& mbs,
+		const SolverData& data);
+	virtual void update(const std::vector<rbd::MultiBody>& mbs,
+		const std::vector<rbd::MultiBodyConfig>& mbcs,
+		const SolverData& data);
+
+	virtual const Eigen::MatrixXd& Q() const;
+	virtual const Eigen::VectorXd& C() const;
+
+	const Eigen::VectorXd& eval() const;
+
+private:
+	struct JointData
+	{
+		double stiffness, damping;
+		int start, size;
+	};
+
+private:
+	tasks::IntegratorFeedbackTask pt_;
+
+	double stiffness_;
+	double damping_;
+	int robotIndex_, alphaDBegin_;
+
+	std::vector<JointData> jointDatas_;
+
+	Eigen::MatrixXd Q_;
+	Eigen::VectorXd C_;
+	Eigen::VectorXd alphaVec_;
+};
+
 
 
 class TASKS_DLLAPI PositionTask : public HighLevelTask
