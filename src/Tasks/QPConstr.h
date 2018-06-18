@@ -194,6 +194,12 @@ private:
 		State state;
 	};
 
+public:
+  std::vector<DampData> dampData() const
+  {
+    return data_;
+  }
+
 private:
 	int robotIndex_, alphaDBegin_;
 	std::vector<DampData> data_;
