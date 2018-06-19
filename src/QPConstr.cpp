@@ -244,6 +244,12 @@ void DamperJointLimitsConstr::update(const std::vector<rbd::MultiBody>& /* mbs *
 			d.state = DampData::Free;
 		}
 	}
+
+}
+
+const std::vector<DamperJointLimitsConstr::DampData>& DamperJointLimitsConstr::dampData() const
+{
+  return data_;
 }
 
 

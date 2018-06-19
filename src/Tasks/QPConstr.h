@@ -174,7 +174,7 @@ public:
 	double computeDamping(double alpha, double dist, double iDist, double sDist);
 	double computeDamper(double dist, double iDist, double sDist, double damping);
 
-private:
+public:
 	struct DampData
 	{
 		enum State {Low, Upp, Free};
@@ -195,10 +195,7 @@ private:
 	};
 
 public:
-  std::vector<DampData> dampData() const
-  {
-    return data_;
-  }
+  const std::vector<DampData>& dampData() const;
 
 private:
 	int robotIndex_, alphaDBegin_;
