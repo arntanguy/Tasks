@@ -192,6 +192,7 @@ public:
 		int alphaDBegin;
 		double damping;
 		State state;
+    double ld, ud;
 	};
 
 public:
@@ -556,7 +557,7 @@ public:
 		* \f$ \underline{v} \in \mathbb{R}^{n} \f$ and
 		* \f$ \overline{v} \in \mathbb{R}^{n} \f$.
 		*/
-	void addBoundedSpeed(const std::vector<rbd::MultiBody>& mbs, 
+	void addBoundedSpeed(const std::vector<rbd::MultiBody>& mbs,
 		const std::string& bodyName,
 		const Eigen::Vector3d& bodyPoint, const Eigen::MatrixXd& dof,
 		const Eigen::VectorXd& speed);

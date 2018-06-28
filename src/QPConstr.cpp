@@ -200,14 +200,14 @@ void DamperJointLimitsConstr::update(const std::vector<rbd::MultiBody>& /* mbs *
 
 	for(DampData& d: data_)
 	{
-		double ld = mbc.q[d.jointIndex][0] - d.min;
-		double ud = d.max - mbc.q[d.jointIndex][0];
+		d.ld = mbc.q[d.jointIndex][0] - d.min;
+		d.ud = d.max - mbc.q[d.jointIndex][0];
 		double alpha = mbc.alpha[d.jointIndex][0];
 
 		lower_[d.alphaDBegin] = (d.minVel - alpha)/step_;
 		upper_[d.alphaDBegin] = (d.maxVel - alpha)/step_;
 
-		if(ld < d.iDist)
+		if(d.ld < d.iDist)
 		{
 			// damper(dist) < alpha
 			// dist > 0 -> negative < alpha -> joint angle can decrease
@@ -215,15 +215,15 @@ void DamperJointLimitsConstr::update(const std::vector<rbd::MultiBody>& /* mbs *
 			if(d.state != DampData::Low)
 			{
 				d.damping =
-					std::abs(computeDamping(alpha, ld, d.iDist, d.sDist)) + damperOff_;
+					std::abs(computeDamping(alpha, d.ld, d.iDist, d.sDist)) + damperOff_;
 				d.state = DampData::Low;
 			}
 
-			double damper = -computeDamper(ld, d.iDist, d.sDist, d.damping);
+			double damper = -computeDamper(d.ld, d.iDist, d.sDist, d.damping);
 			lower_[d.alphaDBegin] = std::max((damper - alpha)/step_,
 				lower_[d.alphaDBegin]);
 		}
-		else if(ud < d.iDist)
+		else if(d.ud < d.iDist)
 		{
 			// alpha < damper(dist)
 			// dist > 0 -> alpha < positive -> joint angle can increase
@@ -231,11 +231,11 @@ void DamperJointLimitsConstr::update(const std::vector<rbd::MultiBody>& /* mbs *
 			if(d.state != DampData::Upp)
 			{
 				d.damping =
-					std::abs(computeDamping(alpha, ud, d.iDist, d.sDist)) + damperOff_;
+					std::abs(computeDamping(alpha, d.ud, d.iDist, d.sDist)) + damperOff_;
 				d.state = DampData::Upp;
 			}
 
-			double damper = computeDamper(ud, d.iDist, d.sDist, d.damping);
+			double damper = computeDamper(d.ud, d.iDist, d.sDist, d.damping);
 			upper_[d.alphaDBegin] = std::min((damper - alpha)/step_,
 				upper_[d.alphaDBegin]);
 		}
