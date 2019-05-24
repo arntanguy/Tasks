@@ -157,31 +157,27 @@ public:
   double computeDamping(double alpha, double dist, double iDist, double sDist);
   double computeDamper(double dist, double iDist, double sDist, double damping);
 
-private:
-  struct DampData
-  {
-    enum State
-    {
-      Low,
-      Upp,
-      Free
-    };
+	struct DampData
+	{
+		enum State {Low, Upp, Free};
 
-    DampData(double mi, double ma, double miV, double maV, double idi, double sdi, int aDB, int i)
-    : min(mi), max(ma), minVel(miV), maxVel(maV), iDist(idi), sDist(sdi), jointIndex(i), alphaDBegin(aDB), damping(0.),
-      state(Free)
-    {
-    }
+		DampData(double mi, double ma, double miV, double maV,
+						 double idi, double sdi, int aDB, int i):
+			min(mi), max(ma), minVel(miV), maxVel(maV), iDist(idi), sDist(sdi),
+			jointIndex(i), alphaDBegin(aDB), damping(0.), state(Free)
+		{}
 
-    double min, max;
-    double minVel, maxVel;
-    double iDist, sDist;
-    int jointIndex;
-    int alphaDBegin;
-    double damping;
-    State state;
-  };
+		double min, max;
+		double minVel, maxVel;
+		double iDist, sDist;
+		int jointIndex;
+		int alphaDBegin;
+		double damping;
+		State state;
+	};
 
+	/** Access DampData */
+	std::vector<DampData> & data() { return data_; }
 private:
   int robotIndex_, alphaDBegin_;
   std::vector<DampData> data_;
